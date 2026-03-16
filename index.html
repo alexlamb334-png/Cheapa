@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cheapa — Cheapest Fuel in WA</title>
+<meta name="description" content="Find the cheapest fuel prices near you in Western Australia. Live prices from FuelWatch WA.">
+<meta name="theme-color" content="#0a0c0f">
+
+<!-- Open Graph -->
+<meta property="og:title" content="Cheapa — Cheapest Fuel in WA">
+<meta property="og:description" content="Find the cheapest fuel near you. Live prices from FuelWatch WA.">
+<meta property="og:type" content="website">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+
+<style>
+  :root {
+    --bg:       #0a0c0f;
+    --surface:  #111419;
+    --surface2: #181c23;
+    --border:   #1e2530;
+    --accent:   #e8f43a;
+    --text:     #e8ecf0;
+    --muted:    #5a6472;
+    --green:    #2ecc71;
+    --red:      #ff5533;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── HEADER ── */
+  header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 14px 28px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    position: sticky; top: 0; z-index: 100;
+  }
+
+  .logo {
+    display: flex; align-items: baseline; gap: 6px;
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 2rem; letter-spacing: 3px;
+    line-height: 1;
+  }
+  .logo-cheap { color: var(--accent); }
+  .logo-a     { color: var(--text); }
+  .logo-tag {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.6rem; font-weight: 400;
+    letter-spacing: 1px; color: var(--muted);
+    text-transform: uppercase;
+    align-self: center;
+    margin-left: 2px;
+  }
+
+  .status-pill {
+    display: flex; align-items: center; gap: 8px;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 999px; padding: 5px 14px;
+    font-size: 0.74rem; font-family: 'DM Mono', monospace; color: var(--muted);
+  }
+  .dot {
+    width: 7px; height: 7px; border-radius: 50%;
+    background: var(--muted); transition: background 0.4s;
+    flex-shrink: 0;
+  }
+  .dot.live { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .dot.err  { background: var(--red); }
+
+  /* ── LAYOUT ── */
+  .app {
+    display: grid;
+    grid-template-columns: 390px 1fr;
+    height: calc(100vh - 61px);
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex; flex-direction: column;
+    overflow: hidden;
+  }
+
+  .controls {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 10px;
+  }
+
+  .ctrl-label {
+    font-size: 0.67rem; text-transform: uppercase;
+    letter-spacing: 1.5px; color: var(--muted);
+    font-weight: 600; margin-bottom: 2px;
+  }
+
+  .row { display: flex; gap: 8px; }
+
+  input.suburb-input {
+    flex: 1;
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    padding: 9px 13px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.9rem;
+    outline: none; transition: border-color 0.2s;
+  }
+  input.suburb-input::placeholder { color: var(--muted); }
+  input.suburb-input:focus { border-color: var(--accent); }
+
+  select {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text);
+    padding: 9px 30px 9px 12px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.88rem;
+    cursor: pointer; outline: none; appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%235a6472' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat; background-position: right 10px center;
+    transition: border-color 0.2s;
+  }
+  select:focus { border-color: var(--accent); }
+  #fuelType { flex: 1; }
+
+  .btn {
+    border: none; border-radius: 8px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.85rem;
+    transition: all 0.18s;
+    display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+  .btn-primary { background: var(--accent); color: #0a0c0f; padding: 9px 18px; }
+  .btn-primary:hover { background: #d3df2e; }
+  .btn-primary:active { transform: scale(0.97); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+  .btn-gps {
+    background: var(--surface2); border: 1px solid var(--border);
+    color: var(--text); padding: 9px 13px; font-size: 1rem; flex-shrink: 0;
+  }
+  .btn-gps:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── RESULTS ── */
+  .results-header {
+    padding: 11px 18px 7px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .results-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1rem; letter-spacing: 1px; color: var(--muted);
+  }
+  .result-count {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.72rem; color: var(--muted);
+  }
+
+  .station-list {
+    flex: 1; overflow-y: auto;
+    padding: 0 10px 16px;
+    display: flex; flex-direction: column; gap: 7px;
+  }
+  .station-list::-webkit-scrollbar { width: 3px; }
+  .station-list::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+  /* ── CARDS ── */
+  .station-card {
+    background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 13px 15px;
+    cursor: pointer; transition: all 0.18s; position: relative;
+    animation: slideIn 0.25s ease forwards; opacity: 0;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(5px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  .station-card:nth-child(1){animation-delay:.02s} .station-card:nth-child(2){animation-delay:.06s}
+  .station-card:nth-child(3){animation-delay:.10s} .station-card:nth-child(4){animation-delay:.14s}
+  .station-card:nth-child(5){animation-delay:.18s} .station-card:nth-child(6){animation-delay:.22s}
+  .station-card:nth-child(7){animation-delay:.26s} .station-card:nth-child(8){animation-delay:.30s}
+
+  .station-card:hover { border-color: #2a3040; background: #1c2030; transform: translateX(2px); }
+  .station-card.active { border-color: var(--accent); background: #191d0d; }
+  .station-card.cheapest { border-color: var(--accent); }
+
+  .cheapest-badge {
+    position: absolute; top: -1px; right: 14px;
+    background: var(--accent); color: #0a0c0f;
+    font-size: 0.6rem; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 1px; padding: 2px 8px; border-radius: 0 0 6px 6px;
+  }
+
+  .card-top {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; margin-bottom: 5px;
+  }
+  .station-name {
+    font-weight: 600; font-size: 0.9rem;
+    color: var(--text); line-height: 1.3; max-width: 205px;
+  }
+  .price-tag {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.65rem; color: var(--accent);
+    letter-spacing: 1px; line-height: 1;
+  }
+  .price-unit {
+    font-family: 'DM Mono', monospace;
+    font-size: 0.62rem; color: var(--muted);
+    text-align: right;
+  }
+  .card-brand {
+    display: inline-block; font-size: 0.67rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    color: var(--muted); background: var(--border);
+    border-radius: 4px; padding: 2px 7px; margin-bottom: 7px;
+  }
+  .card-address {
+    font-size: 0.77rem; color: var(--muted);
+    margin-bottom: 10px; line-height: 1.4;
+  }
+  .card-actions { display: flex; gap: 6px; }
+
+  .btn-directions {
+    flex: 1; background: var(--accent); color: #0a0c0f;
+    padding: 8px 10px; border-radius: 8px; border: none;
+    font-family: 'DM Sans', sans-serif; font-weight: 600; font-size: 0.78rem;
+    cursor: pointer; transition: all 0.18s;
+    display: flex; align-items: center; justify-content: center; gap: 5px;
+  }
+  .btn-directions:hover { background: #d3df2e; }
+
+  .btn-showmap {
+    background: transparent; border: 1px solid var(--border);
+    color: var(--muted); padding: 8px 12px; border-radius: 8px;
+    font-family: 'DM Sans', sans-serif; font-size: 0.78rem;
+    cursor: pointer; transition: all 0.18s;
+  }
+  .btn-showmap:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ── SUMMARY BAR ── */
+  .summary-bar {
+    display: flex; border-top: 1px solid var(--border);
+    background: var(--surface); flex-shrink: 0;
+  }
+  .summary-item {
+    flex: 1; padding: 9px 14px;
+    border-right: 1px solid var(--border); text-align: center;
+  }
+  .summary-item:last-child { border-right: none; }
+  .sum-label { font-size: 0.63rem; text-transform: uppercase; letter-spacing: 1px; color: var(--muted); }
+  .sum-value { font-family: 'Bebas Neue', sans-serif; font-size: 1.05rem; color: var(--accent); letter-spacing: 1px; }
+
+  .wa-note {
+    padding: 6px 18px; background: var(--surface);
+    border-top: 1px solid var(--border);
+    font-size: 0.67rem; color: var(--muted); text-align: center;
+  }
+  .wa-note a { color: var(--muted); text-decoration: none; }
+  .wa-note a:hover { color: var(--text); }
+
+  /* ── MAP ── */
+  .map-panel { display: flex; flex-direction: column; background: var(--bg); }
+  .map-frame  { flex: 1; border: none; width: 100%; }
+
+  /* ── STATES ── */
+  .empty-state {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    gap: 10px; padding: 40px 20px; text-align: center; color: var(--muted);
+  }
+  .empty-icon  { font-size: 2.8rem; opacity: 0.3; }
+  .empty-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.3rem; letter-spacing: 1px; color: var(--text); opacity: 0.4;
+  }
+  .empty-sub { font-size: 0.8rem; line-height: 1.55; max-width: 260px; }
+
+  .loading-wrap {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; color: var(--muted);
+  }
+  .spinner {
+    width: 32px; height: 32px;
+    border: 3px solid var(--border); border-top-color: var(--accent);
+    border-radius: 50%; animation: spin 0.75s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .loading-sub { font-size: 0.8rem; }
+
+  .error-box {
+    margin: 10px 12px; padding: 11px 14px;
+    background: #180a08; border: 1px solid #3d1208;
+    border-radius: 10px; font-size: 0.8rem; color: #ff7755;
+    line-height: 1.5; display: none;
+  }
+  .error-box.show { display: block; }
+  .error-box strong { display: block; margin-bottom: 3px; font-size: 0.84rem; }
+
+  /* ── RESPONSIVE ── */
+  @media (max-width: 800px) {
+    .app {
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr;
+      height: auto;
+      min-height: calc(100vh - 61px);
+    }
+    .map-panel { height: 42vh; order: -1; }
+    .sidebar   { max-height: none; }
+    .station-list { max-height: 50vh; }
+  }
+
+  @media (max-width: 480px) {
+    header { padding: 12px 16px; }
+    .logo  { font-size: 1.7rem; }
+    .logo-tag { display: none; }
+    .controls { padding: 14px; }
+    .map-panel { height: 38vh; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <span class="logo-cheap">CHEAP</span><span class="logo-a">A</span>
+    <span class="logo-tag">WA Fuel Prices</span>
+  </div>
+  <div class="status-pill">
+    <div class="dot" id="statusDot"></div>
+    <span id="statusText">Ready</span>
+  </div>
+</header>
+
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <div class="sidebar">
+    <div class="controls">
+      <div>
+        <div class="ctrl-label">Suburb or Postcode</div>
+        <div class="row">
+          <input class="suburb-input" id="suburbInput" type="text"
+            placeholder="e.g. Joondalup, Fremantle, 6000…" value="Perth"
+            autocomplete="off" spellcheck="false">
+          <button class="btn btn-gps" id="gpsBtn" title="Use my GPS location">📍</button>
+          <button class="btn btn-primary" id="searchBtn">Search</button>
+        </div>
+      </div>
+      <div class="row">
+        <div style="flex:1">
+          <div class="ctrl-label">Fuel Type</div>
+          <select id="fuelType">
+            <option value="1">Unleaded 91</option>
+            <option value="2">Premium 95</option>
+            <option value="4">Premium 98</option>
+            <option value="5">Diesel</option>
+            <option value="6">LPG</option>
+            <option value="10">E10</option>
+          </select>
+        </div>
+        <div>
+          <div class="ctrl-label">Nearby</div>
+          <select id="surroundSelect">
+            <option value="yes">Include nearby</option>
+            <option value="no">Exact only</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="error-box" id="errorBox"></div>
+
+    <div class="results-header">
+      <div class="results-title">Stations</div>
+      <div class="result-count" id="resultCount"></div>
+    </div>
+
+    <div class="station-list" id="stationList">
+      <div class="empty-state">
+        <div class="empty-icon">⛽</div>
+        <div class="empty-title">Find Cheap Fuel</div>
+        <div class="empty-sub">Enter a WA suburb or tap 📍 to use your location, then hit Search for today's live prices.</div>
+      </div>
+    </div>
+
+    <div class="summary-bar" id="summaryBar" style="display:none">
+      <div class="summary-item">
+        <div class="sum-label">Cheapest</div>
+        <div class="sum-value" id="sumCheapest">—</div>
+      </div>
+      <div class="summary-item">
+        <div class="sum-label">Average</div>
+        <div class="sum-value" id="sumAverage">—</div>
+      </div>
+      <div class="summary-item">
+        <div class="sum-label">Stations</div>
+        <div class="sum-value" id="sumCount">—</div>
+      </div>
+    </div>
+
+    <div class="wa-note">
+      Live data via <a href="https://www.fuelwatch.wa.gov.au" target="_blank" rel="noopener">FuelWatch WA</a>
+      · Prices locked in daily at midnight
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div class="map-panel">
+    <iframe class="map-frame" id="mapFrame"
+      src="https://maps.google.com/maps?q=Perth+WA+Australia&output=embed&z=11"
+      allowfullscreen loading="lazy"
+      referrerpolicy="no-referrer-when-downgrade">
+    </iframe>
+  </div>
+
+</div>
+
+<script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+const RSS2JSON  = 'https://api.rss2json.com/v1/api.json';
+const FUELWATCH = 'https://www.fuelwatch.wa.gov.au/fuelwatch/fuelWatchRSS';
+
+const FUEL_NAMES = {
+  '1': 'ULP 91', '2': 'Premium 95', '4': 'Premium 98',
+  '5': 'Diesel',  '6': 'LPG',        '10': 'E10'
+};
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const $ = id => document.getElementById(id);
+let userLat = null, userLng = null;
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+const setStatus = (msg, state = 'idle') => {
+  $('statusText').textContent = msg;
+  $('statusDot').className = 'dot'
+    + (state === 'live' ? ' live' : state === 'err' ? ' err' : '');
+};
+
+const showError = html => {
+  $('errorBox').innerHTML = html;
+  $('errorBox').classList.add('show');
+};
+const hideError = () => $('errorBox').classList.remove('show');
+
+const esc = s => String(s || '')
+  .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+  .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+// ── RSS FETCH via rss2json.com ────────────────────────────────────────────────
+async function fetchFuelPrices(suburb, product, surrounding) {
+  const fwUrl  = `${FUELWATCH}?Product=${product}&Suburb=${encodeURIComponent(suburb)}&Surrounding=${surrounding}`;
+  const apiUrl = `${RSS2JSON}?rss_url=${encodeURIComponent(fwUrl)}&count=50`;
+
+  const res = await fetch(apiUrl, { signal: AbortSignal.timeout(12000) });
+  if (!res.ok) throw new Error(`RSS reader returned HTTP ${res.status}. Try again shortly.`);
+
+  const data = await res.json();
+
+  if (data.status === 'error') {
+    throw new Error(data.message || 'Could not read FuelWatch feed. Check the suburb name.');
+  }
+
+  if (!data.items || data.items.length === 0) return [];
+
+  // rss2json preserves FuelWatch custom XML tags in item.description as encoded HTML.
+  // We extract them with a regex helper.
+  const stations = data.items.map(item => {
+    const blob = (item.description || item.content || '');
+
+    const tag = name => {
+      // Try direct property first
+      if (item[name] !== undefined && item[name] !== '') return String(item[name]);
+      // Fall back to regex on description blob
+      const m = blob.match(new RegExp(`<${name}[^>]*>\\s*([^<]*)\\s*<\\/${name}>`, 'i'));
+      return m ? m[1].trim() : null;
+    };
+
+    const price = parseFloat(tag('price'));
+    if (isNaN(price)) return null;
+
+    return {
+      tradingName: item.title  || '',
+      brand:       tag('brand')    || '',
+      address:     tag('address')  || '',
+      suburb:      tag('location') || '',
+      price,
+      lat:   parseFloat(tag('latitude'))  || null,
+      lng:   parseFloat(tag('longitude')) || null,
+      phone: tag('phone') || '',
+    };
+  }).filter(Boolean);
+
+  return stations.sort((a, b) => a.price - b.price);
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function renderStations(stations, fuelLabel) {
+  $('stationList').innerHTML = '';
+  hideError();
+
+  if (!stations.length) {
+    $('stationList').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">🔍</div>
+        <div class="empty-title">No Results</div>
+        <div class="empty-sub">No ${esc(fuelLabel)} stations found for this area.
+          Try enabling "Include nearby" or search a different suburb.</div>
+      </div>`;
+    $('summaryBar').style.display = 'none';
+    $('resultCount').textContent = '';
+    return;
+  }
+
+  const prices   = stations.map(s => Number(s.price)).filter(Boolean);
+  const cheapest = Math.min(...prices);
+  const avg      = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(1);
+
+  $('sumCheapest').textContent = cheapest.toFixed(1) + '¢';
+  $('sumAverage').textContent  = avg + '¢';
+  $('sumCount').textContent    = stations.length;
+  $('summaryBar').style.display = 'flex';
+  $('resultCount').textContent  = `${stations.length} station${stations.length !== 1 ? 's' : ''}`;
+
+  let firstPin = true;
+
+  stations.forEach(s => {
+    const isCheapest = Number(s.price) === cheapest;
+    const lat  = parseFloat(s.lat) || null;
+    const lng  = parseFloat(s.lng) || null;
+    const dest = (lat && lng)
+      ? `${lat},${lng}`
+      : encodeURIComponent(`${s.address} ${s.suburb} WA`);
+    const mapsUrl = userLat && userLng
+      ? `https://www.google.com/maps/dir/${userLat},${userLng}/${dest}`
+      : `https://www.google.com/maps/dir//${dest}`;
+
+    const card = document.createElement('div');
+    card.className = 'station-card' + (isCheapest ? ' cheapest' : '');
+    card.innerHTML = `
+      ${isCheapest ? '<div class="cheapest-badge">★ Cheapest</div>' : ''}
+      <div class="card-top">
+        <div>
+          <div class="station-name">${esc(s.tradingName || s.brand || 'Unknown')}</div>
+          ${s.brand ? `<div class="card-brand">${esc(s.brand)}</div>` : ''}
+        </div>
+        <div style="text-align:right">
+          <div class="price-tag">${Number(s.price).toFixed(1)}</div>
+          <div class="price-unit">¢ / litre</div>
+        </div>
+      </div>
+      <div class="card-address">📍 ${esc(s.address)}${s.suburb ? ', ' + esc(s.suburb) : ''}</div>
+      <div class="card-actions">
+        <button class="btn-directions">🧭 Get Directions</button>
+        <button class="btn-showmap">🗺 Map</button>
+      </div>`;
+
+    card.querySelector('.btn-directions').addEventListener('click', e => {
+      e.stopPropagation();
+      window.open(mapsUrl, '_blank', 'noopener');
+      embedRoute(lat, lng, `${s.address} ${s.suburb} WA`);
+    });
+
+    card.querySelector('.btn-showmap').addEventListener('click', e => {
+      e.stopPropagation();
+      pinOnMap(lat, lng, s.tradingName || s.brand);
+    });
+
+    card.addEventListener('click', () => {
+      document.querySelectorAll('.station-card.active')
+        .forEach(c => c.classList.remove('active'));
+      card.classList.add('active');
+      pinOnMap(lat, lng, s.tradingName || s.brand);
+    });
+
+    $('stationList').appendChild(card);
+
+    // Auto-pin the cheapest station on load
+    if (isCheapest && firstPin) {
+      firstPin = false;
+      setTimeout(() => pinOnMap(lat, lng, s.tradingName || s.brand), 400);
+    }
+  });
+}
+
+// ── MAP HELPERS ───────────────────────────────────────────────────────────────
+function pinOnMap(lat, lng, name) {
+  if (lat && lng && !isNaN(lat) && !isNaN(lng)) {
+    $('mapFrame').src = `https://maps.google.com/maps?q=${lat},${lng}&output=embed&z=16`;
+  } else {
+    $('mapFrame').src = `https://maps.google.com/maps?q=${encodeURIComponent((name || 'petrol station') + ' WA')}&output=embed&z=15`;
+  }
+}
+
+function embedRoute(lat, lng, address) {
+  const dest = (lat && lng && !isNaN(lat))
+    ? `${lat},${lng}`
+    : encodeURIComponent(address);
+  $('mapFrame').src = userLat && userLng
+    ? `https://maps.google.com/maps?saddr=${userLat},${userLng}&daddr=${dest}&output=embed`
+    : `https://maps.google.com/maps?q=${dest}&output=embed&z=15`;
+}
+
+// ── SEARCH ────────────────────────────────────────────────────────────────────
+async function doSearch() {
+  const suburb = $('suburbInput').value.trim();
+  if (!suburb) {
+    showError('<strong>Missing suburb</strong>Please enter a WA suburb or postcode.');
+    return;
+  }
+
+  hideError();
+  $('searchBtn').disabled = true;
+  setStatus('Fetching prices…');
+
+  $('stationList').innerHTML = `
+    <div class="loading-wrap">
+      <div class="spinner"></div>
+      <div class="loading-sub">Loading today's prices from FuelWatch…</div>
+    </div>`;
+  $('summaryBar').style.display = 'none';
+  $('resultCount').textContent = '';
+
+  const product  = $('fuelType').value;
+  const surround = $('surroundSelect').value;
+  const label    = FUEL_NAMES[product] || 'fuel';
+
+  try {
+    const stations = await fetchFuelPrices(suburb, product, surround);
+    renderStations(stations, label);
+    setStatus(`Live · ${label}`, 'live');
+
+    // If no station coords, zoom map to suburb
+    if (!stations.some(s => s.lat && s.lng)) {
+      $('mapFrame').src = `https://maps.google.com/maps?q=${encodeURIComponent(suburb + ' WA')}&output=embed&z=13`;
+    }
+  } catch (e) {
+    $('stationList').innerHTML = `
+      <div class="empty-state">
+        <div class="empty-icon">⚠️</div>
+        <div class="empty-title">Error</div>
+        <div class="empty-sub">${esc(e.message)}</div>
+      </div>`;
+    showError(`<strong>Could not load prices</strong>${esc(e.message)}`);
+    setStatus('Error', 'err');
+    $('summaryBar').style.display = 'none';
+  } finally {
+    $('searchBtn').disabled = false;
+  }
+}
+
+// ── GPS ───────────────────────────────────────────────────────────────────────
+$('gpsBtn').addEventListener('click', () => {
+  if (!navigator.geolocation) {
+    showError('<strong>Not supported</strong>Your browser does not support geolocation.');
+    return;
+  }
+  $('gpsBtn').textContent = '⏳';
+  setStatus('Getting location…');
+
+  navigator.geolocation.getCurrentPosition(async pos => {
+    userLat = pos.coords.latitude;
+    userLng = pos.coords.longitude;
+    $('gpsBtn').textContent = '📍';
+
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${userLat}&lon=${userLng}&format=json`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const d = await r.json();
+      $('suburbInput').value =
+        d.address?.suburb || d.address?.town ||
+        d.address?.city_district || d.address?.city || 'Perth';
+    } catch {
+      $('suburbInput').value = 'Perth';
+    }
+    doSearch();
+
+  }, err => {
+    $('gpsBtn').textContent = '📍';
+    const msg = err.code === 1
+      ? 'Location access was denied. Please enter your suburb manually.'
+      : 'Could not get your location. Please enter your suburb manually.';
+    showError(`<strong>Location unavailable</strong>${msg}`);
+    setStatus('Ready');
+  }, { timeout: 10000 });
+});
+
+// ── EVENTS ────────────────────────────────────────────────────────────────────
+$('searchBtn').addEventListener('click', doSearch);
+$('suburbInput').addEventListener('keydown', e => {
+  if (e.key === 'Enter') doSearch();
+});
+</script>
+</body>
+</html>
