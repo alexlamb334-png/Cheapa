@@ -424,8 +424,14 @@
 
 <script>
 // ── CONFIG ────────────────────────────────────────────────────────────────────
-const RSS2JSON  = 'https://api.rss2json.com/v1/api.json';
 const FUELWATCH = 'https://www.fuelwatch.wa.gov.au/fuelwatch/fuelWatchRSS';
+
+// CORS proxies tried in order — fallback automatically if one fails
+const CORS_PROXIES = [
+  url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+  url => `https://corsproxy.io/?${encodeURIComponent(url)}`,
+  url => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+];
 
 const FUEL_NAMES = {
   '1': 'ULP 91', '2': 'Premium 95', '4': 'Premium 98',
@@ -453,47 +459,57 @@ const esc = s => String(s || '')
   .replace(/&/g, '&amp;').replace(/</g, '&lt;')
   .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 
-// ── RSS FETCH via rss2json.com ────────────────────────────────────────────────
+// ── RSS FETCH via CORS proxy + native DOMParser ───────────────────────────────
 async function fetchFuelPrices(suburb, product, surrounding) {
-  const fwUrl  = `${FUELWATCH}?Product=${product}&Suburb=${encodeURIComponent(suburb)}&Surrounding=${surrounding}`;
-  const apiUrl = `${RSS2JSON}?rss_url=${encodeURIComponent(fwUrl)}&count=50`;
+  const fwUrl = `${FUELWATCH}?Product=${product}&Suburb=${encodeURIComponent(suburb)}&Surrounding=${surrounding}`;
 
-  const res = await fetch(apiUrl, { signal: AbortSignal.timeout(12000) });
-  if (!res.ok) throw new Error(`RSS reader returned HTTP ${res.status}. Try again shortly.`);
+  let xml = null;
+  let lastError = '';
 
-  const data = await res.json();
-
-  if (data.status === 'error') {
-    throw new Error(data.message || 'Could not read FuelWatch feed. Check the suburb name.');
+  // Try each CORS proxy in turn until one succeeds
+  for (const makeProxyUrl of CORS_PROXIES) {
+    try {
+      const res = await fetch(makeProxyUrl(fwUrl), {
+        signal: AbortSignal.timeout(10000)
+      });
+      if (!res.ok) { lastError = `HTTP ${res.status}`; continue; }
+      const text = await res.text();
+      // Sanity check — must look like XML
+      if (text.trim().startsWith('<')) { xml = text; break; }
+      lastError = 'Unexpected response format';
+    } catch (e) {
+      lastError = e.message;
+    }
   }
 
-  if (!data.items || data.items.length === 0) return [];
+  if (!xml) throw new Error(`Could not reach FuelWatch. ${lastError}. Please try again.`);
 
-  // rss2json preserves FuelWatch custom XML tags in item.description as encoded HTML.
-  // We extract them with a regex helper.
-  const stations = data.items.map(item => {
-    const blob = (item.description || item.content || '');
+  // Parse the raw XML with the browser's built-in DOMParser
+  const parser = new DOMParser();
+  const doc    = parser.parseFromString(xml, 'text/xml');
 
-    const tag = name => {
-      // Try direct property first
-      if (item[name] !== undefined && item[name] !== '') return String(item[name]);
-      // Fall back to regex on description blob
-      const m = blob.match(new RegExp(`<${name}[^>]*>\\s*([^<]*)\\s*<\\/${name}>`, 'i'));
-      return m ? m[1].trim() : null;
-    };
+  const parseErr = doc.querySelector('parsererror');
+  if (parseErr) throw new Error('FuelWatch returned unexpected data. Try again shortly.');
 
-    const price = parseFloat(tag('price'));
+  const items = Array.from(doc.querySelectorAll('item'));
+  if (!items.length) return [];
+
+  // Helper: get text content of a tag inside an <item>
+  const val = (item, tag) => item.querySelector(tag)?.textContent?.trim() || '';
+
+  const stations = items.map(item => {
+    const price = parseFloat(val(item, 'price'));
     if (isNaN(price)) return null;
 
     return {
-      tradingName: item.title  || '',
-      brand:       tag('brand')    || '',
-      address:     tag('address')  || '',
-      suburb:      tag('location') || '',
+      tradingName: val(item, 'title'),
+      brand:       val(item, 'brand'),
+      address:     val(item, 'address'),
+      suburb:      val(item, 'location'),
       price,
-      lat:   parseFloat(tag('latitude'))  || null,
-      lng:   parseFloat(tag('longitude')) || null,
-      phone: tag('phone') || '',
+      lat:  parseFloat(val(item, 'latitude'))  || null,
+      lng:  parseFloat(val(item, 'longitude')) || null,
+      phone: val(item, 'phone'),
     };
   }).filter(Boolean);
 
